@@ -60,18 +60,19 @@ if uploaded_file is not None:
 # Add 'Process Interview' button
 if st.button('Process interview'):
     if 'uploaded_file' in st.session_state and st.session_state.uploaded_file is not None:
-        # Get the uploaded file and chat history
-        uploaded_file = st.session_state.uploaded_file
-        chat_history = st.session_state.messages
+        with st.spinner('Processing with interviewer assistant...'):
+            # Get the uploaded file and chat history
+            uploaded_file = st.session_state.uploaded_file
+            chat_history = st.session_state.messages
 
-        # Process the interview
-        result = backend_manager.assistant_manager.process_interview(
-            uploaded_file=uploaded_file,
-            chat_history=chat_history,
-        )
+            # Process the interview
+            result = backend_manager.assistant_manager.process_interview(
+                uploaded_file=uploaded_file,
+                chat_history=chat_history,
+            )
 
-        # Display the assistant's response directly
-        st.markdown(result)
+            # Display the assistant's response directly
+            st.markdown(result)
 
     else:
         st.write("Please upload a file before processing.")

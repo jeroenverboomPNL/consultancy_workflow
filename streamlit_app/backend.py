@@ -1,6 +1,22 @@
 # backend.py
 import logging
-from openai import AzureOpenAI
+from typing import Literal, TypedDict
+from openai import AzureOpenAI, pydantic_function_tool
+from pydantic import BaseModel
+
+
+class HypothesisResponseFormat(BaseModel):
+    reasoning: str
+    conclusion: str
+    score: int
+
+# class HypothesisResponse(TypedDict):
+#
+#     """
+#     Router is a TypeDict object. This is used to validates if a variable (key) is populated with a value in present
+#      in the list options provided in the Literal list. The options here are 'researcher', 'TranscriptProcessor' or 'FINISH'.
+#    """
+#     score: Literal[1, 2, 3, 4, 5, 6, 7, "CANNOT DETERMINE"]
 
 class AzureOpenAIClient:
     def __init__(self, api_key: str, endpoint: str):
@@ -34,6 +50,10 @@ class VectorStoreManager:
         self.logger.info(f"Vector store '{vector_store_name}' status: {file_batch.status}")
         return vector_store.id
 
+class Router(BaseModel):
+    task: Literal["standardise", "format", "extract", "map"]
+
+tools = [pydantic_function_tool(Router)]
 
 class AssistantManager:
     def __init__(self, client: AzureOpenAI):
@@ -42,6 +62,8 @@ class AssistantManager:
         self.vector_store_manager = VectorStoreManager(client)
         self.assistants = {}
         self.initialize_assistants()
+
+
 
     def initialize_assistants(self):
         assistant_names = ["interview_assistant", "summary_assistant", "hypothesis_1_3_assistant"]
@@ -101,37 +123,26 @@ class AssistantManager:
         )
         self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
 
-    def create_summary_assistant(self):
-        assistant = self.client.beta.assistants.create(
-            name="summary_assistant",
-            instructions="""
-            Make a summary of the given text. Ensure that the summary is concise and captures the main points of the text.
-            Do not lose any information; it is fine to be a bit longer but make sure you capture all the main points.
-            """,
-            tools=[],
-            model="cbs-test-deployment",
-        )
-        self.logger.info(f"Assistant 'summary_assistant' created with ID: {assistant.id}")
 
-    def create_hypothesis_assistant(self):
-        file_paths = ["/path/to/your/document.docx"]
-        vector_store_id = self.vector_store_manager.create_and_fill_vector_store(
-            vector_store_name="hypothesis1_3_vs_id",
-            file_paths=file_paths,
-        )
-        assistant = self.client.beta.assistants.create(
-            name="hypothesis_1_3_assistant",
-            instructions="""
-            You are an expert in identifying strategy execution issues.
-            You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
-            Read the transcript and assess how the leadership scores on this hypothesis.
-            First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
-            """,
-            tools=[{"type": "file_search"}],
-            model="cbs-test-deployment",
-            tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
-        )
-        self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
+    # def create_hypothesis_assistant(self):
+    #     file_paths = ["/path/to/your/document.docx"]
+    #     vector_store_id = self.vector_store_manager.create_and_fill_vector_store(
+    #         vector_store_name="hypothesis1_3_vs_id",
+    #         file_paths=file_paths,
+    #     )
+    #     assistant = self.client.beta.assistants.create(
+    #         name="hypothesis_1_3_assistant",
+    #         instructions="""
+    #         You are an expert in identifying strategy execution issues.
+    #         You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
+    #         Read the transcript and assess how the leadership scores on this hypothesis.
+    #         First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
+    #         """,
+    #         tools=[{"type": "file_search"}],
+    #         model="cbs-test-deployment",
+    #         tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
+    #     )
+    #     self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
 
     def chat_with_assistant(self, assistant_name: str, user_message: str, chat_history: list) -> str:
         assistant_id = self.assistants.get(assistant_name)
@@ -180,6 +191,7 @@ class AssistantManager:
             return f"Error: Run failed with status: {run.status}"
 
     def process_interview(self, uploaded_file, chat_history):
+
         # Reset the file pointer to the beginning
         uploaded_file.seek(0)
 
@@ -214,7 +226,23 @@ class AssistantManager:
         run = self.client.beta.threads.runs.create_and_poll(
             thread_id=thread.id,
             assistant_id=assistant_id,
-            instructions="",  # Additional instructions if any
+            instructions="",# Additional instructions if any
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": f"hypothesis_1_3_assistant",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "reasoning": {"type": "string"},
+                            "score": {"type": "integer"},
+                        },
+                        "required": ["reasoning", "score"],
+                        "additionalProperties": False,
+                    }
+                }
+            }
         )
 
         if run.status == "completed":
@@ -242,3 +270,9 @@ class BackEndManager:
     def init_back_end(self):
         # Initialization is handled in AssistantManager
         pass
+
+
+
+
+
+
