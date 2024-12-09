@@ -4,7 +4,8 @@ from openai import AzureOpenAI, pydantic_function_tool
 import os
 import dotenv
 import json
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional, List, TypedDict, Literal
 from json_repair import repair_json
 from pydantic_router_experiment import chat_with_assistant
 
@@ -38,21 +39,26 @@ def chat_with_assistant(assistant_id: str, chat_history: list) -> str:
 
     # Poll for the run status
     while True:
-        time.sleep(1)
+
+        # Retrieve the run status
+        time.sleep(.01)
         run = client.beta.threads.runs.retrieve(
             thread_id=thread.id,
             run_id=run.id
         )
+
+        # if the run is completed, return the assistant's response
         if run.status == "completed":
-            # Retrieve messages
+            # Retrieve messages and find the assistant's reply
             messages = client.beta.threads.messages.list(thread_id=thread.id)
-            # Find the assistant's reply
             for message in messages:
                 if message.role == "assistant":
                     content = message.content[0]
                     if content.type == "text":
                         return content.text.value
 
+        # If the run requires action, it means we've used a tool meaning we asked for a structured output.
+        # We can cancel the run and return the structured output
         if run.status == "requires_action":
 
             # Get the string of the tool output. It should be JSON but I've built in a check to handle non-JSON strings
@@ -68,7 +74,7 @@ def chat_with_assistant(assistant_id: str, chat_history: list) -> str:
                     ValueError(f"ERROR: Could not repair JSON string. Error: {e}")
                     quit()
 
-            # We cancle the run and return the repaired JSON string
+            # We canceL the run and return the repaired JSON string
             run = client.beta.threads.runs.cancel(
                 thread_id=thread.id,
                 run_id=run.id
@@ -248,27 +254,73 @@ Peter: "Easier said than done."
 
 
 # Define pydantic base model for structured output
+# class HypothesisEvaluation(BaseModel):
+#     reasoning: str
+#     conclusion: str
+#     score: int
+
 class HypothesisEvaluation(BaseModel):
+
     reasoning: str
-    conclusion: str
-    score: int
+
+    # Optional field for standardizing text (e.g., replacing specific words or patterns with standard forms)
+    score_1: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Minimal or no effort to reinforce the strategic direction. "
+            "Leadership actions are either absent or misaligned, causing confusion or a lack of clarity across the organization."
+        )
+    )
+    # Optional field for formatting data (e.g., adjusting case or splitting/merging strings)
+    score_2: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Limited and inconsistent efforts to reinforce the strategic direction. "
+            "Some actions are aligned but lack follow-through or coherence, leading to fragmented understanding within the organization."
+        )
+    )
+    score_3: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Moderate and consistent reinforcement of the strategic direction. "
+            "Leadership actions are aligned and reliable, creating a baseline understanding and buy-in across most parts of the organization."
+        )
+    )
+    score_4: Optional[bool] = Field(
+        default=None,
+        description=(
+            "High degree of consistent reinforcement of the strategic direction. "
+            "Leadership demonstrates clear alignment, fostering broad understanding and a sense of urgency to act on the strategy."
+        )
+    )
+    score_5: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Exceptional and innovative reinforcement of the strategic direction. "
+            "Leadership culture actively seizes every opportunity to embed the strategy, ensuring the entire workforce deeply understands it. "
+            "Creative and impactful approaches are used to build alignment and momentum."
+        )
+    )
+    # Required field for the certainty of task selection, represented as a float (e.g., 0.85 for 85%)
+    certainty_of_correct_score_assignment: float
 
 # Define tool object using openai pydanctic_function_tool
 tool_obj = pydantic_function_tool(HypothesisEvaluation)
 
 # Create test assistant
-# assistant = client.beta.assistants.create(
-#     name="hypothesis_eval_assistant",
-#     instructions="""
-#             You are an expert in identifying strategy execution issues.
-#              You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
-#              Read the transcript and assess how the leadership scores on this hypothesis.
-#              First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
-#         """,
-#     model="gpt-4o",
-#     tools=[tool_obj])
+assistant = client.beta.assistants.create(
+    name="hypothesis_eval_assistant",
+    instructions="""
+            You are an expert in identifying strategy execution issues.
+             You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
+             Read the transcript and assess how the leadership scores on this hypothesis.
+             First, write out your a very brief reasoning, no yapping. Then score the leadership on a likert scale from 1 to 5.
+        """,
+    model="gpt-4o",
+    tools=[tool_obj])
 
-response = chat_with_assistant(assistant_id='asst_8pwEtkYKJ8uTTfbX04c7yRaw', chat_history=chat_history)
+response = chat_with_assistant(assistant_id=assistant.id, chat_history=chat_history)
 
 
 a=2
+
