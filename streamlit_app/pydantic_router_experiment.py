@@ -99,41 +99,42 @@ class Router(BaseModel):
 # START OF THE PROGRAM --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PART 1 START --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# Load environment variables from the .env file
-load_dotenv()
-
-# Initialize the OpenAI client using the API key from the environment variables
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Define a list of tools that use the Router model for validating and handling task-related requests
-tools = [pydantic_function_tool(Router)]
-
-# Create a list to hold messages for the chat interaction
-chat_history = []
-
-# Add a system message to guide the assistant's behavior and add a user message that contains a task request
-chat_history.append({"role": "assistant", "content": "You are a helpful assistant. You have to choose which task you can be relevant to perform given the user query."})
-chat_history.append({"role": "user", "content": "Can you help me replace the word e.g. with example? The value is 'For this one it is e.g. 2024-10-01'"})
-
-# Use the OpenAI client to create a chat completion request
-response = client.chat.completions.create(
-    model='gpt-4o-2024-08-06',  # Specify the model to use
-    messages=chat_history,  # Pass the messages for the interaction
-    tools=tools  # Include the tools for task routing
-)
-
-# Extract the tool function response from the API output
-router_response = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
-
-# Print the results in a user-friendly format
-print("\n".join([f"{key}: {value}" for key, value in router_response.items()]))
+# if __name__ == "__main__":
+#     # Load environment variables from the .env file
+#     load_dotenv()
+#
+#     # Initialize the OpenAI client using the API key from the environment variables
+#     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+#
+#     # Define a list of tools that use the Router model for validating and handling task-related requests
+#     tools = [pydantic_function_tool(Router)]
+#
+#     # Create a list to hold messages for the chat interaction
+#     chat_history = []
+#
+#     # Add a system message to guide the assistant's behavior and add a user message that contains a task request
+#     chat_history.append({"role": "assistant", "content": "You are a helpful assistant. You have to choose which task you can be relevant to perform given the user query."})
+#     chat_history.append({"role": "user", "content": "Can you help me replace the word e.g. with example? The value is 'For this one it is e.g. 2024-10-01'"})
+#
+#     # Use the OpenAI client to create a chat completion request
+#     response = client.chat.completions.create(
+#         model='gpt-4o-2024-08-06',  # Specify the model to use
+#         messages=chat_history,  # Pass the messages for the interaction
+#         tools=tools  # Include the tools for task routing
+#     )
+#
+#     # Extract the tool function response from the API output
+#     router_response = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
+#
+#     # Print the results in a user-friendly format
+#     print("\n".join([f"{key}: {value}" for key, value in router_response.items()]))
 
 
 # PART 2 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-assistant_response = route_to_assistant(router_response)
-print(assistant_response)
-
-chat_history.append({"role": "assistant", "content": assistant_response})
-
-a=2
+# assistant_response = route_to_assistant(router_response)
+# print(assistant_response)
+#
+# chat_history.append({"role": "assistant", "content": assistant_response})
+#
+# a=2
