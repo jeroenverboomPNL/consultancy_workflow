@@ -68,15 +68,12 @@ def chat_with_assistant(assistant_id: str, chat_history: list) -> str:
                     ValueError(f"ERROR: Could not repair JSON string. Error: {e}")
                     quit()
 
-            run = client.beta.threads.runs.submit_tool_outputs(
+            # We cancle the run and return the repaired JSON string
+            run = client.beta.threads.runs.cancel(
                 thread_id=thread.id,
-                run_id=run.id,
-                tool_outputs=[{
-                    "tool_call_id": run.required_action.submit_tool_outputs.tool_calls[0].id,
-                    # current call id in the form of a string
-                    "output": str(json_dict)  # test string
-                }]
+                run_id=run.id
             )
+            return str(json_dict)
 
         elif run.status in ['cancelling', 'cancelled', 'failed', 'incomplete', 'expired']:
             raise RuntimeError(f"Error: Run failed with status: {run.status}")
@@ -272,5 +269,6 @@ tool_obj = pydantic_function_tool(HypothesisEvaluation)
 #     tools=[tool_obj])
 
 response = chat_with_assistant(assistant_id='asst_8pwEtkYKJ8uTTfbX04c7yRaw', chat_history=chat_history)
+
 
 a=2
