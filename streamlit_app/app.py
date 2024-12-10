@@ -4,6 +4,7 @@ import os
 import dotenv
 import streamlit as st
 import logging
+import json
 # Import the backend code
 from backend import BackEndManager
 
@@ -67,15 +68,17 @@ if st.button('Process interview'):
             uploaded_file = st.session_state.uploaded_file
             chat_history = st.session_state.messages
 
-            # Process the interview
+            #Process the interview
             result = backend_manager.assistant_manager.process_interview(
                 assistant_name='hypothesis1_3_structured_output',
                 uploaded_file=uploaded_file,
                 chat_history=chat_history,
             )
+        with st.spinner('Parsing result from hypothesis assistant to JSON...'):
+            json_obj = backend_manager.assistant_manager.parse_to_json(input=result, assistant_name='json_assistant')
 
             # Display the assistant's response directly
-            st.markdown(result)
+            st.json(json_obj)
 
     else:
         st.write("Please upload a file before processing.")

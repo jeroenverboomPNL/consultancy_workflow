@@ -298,6 +298,71 @@ class AssistantManager:
             raise RuntimeError(f"Error: Run failed with status: {run.last_error.message}")
 
 
+    def parse_to_json(self, assistant_name: str, input: str):
+        # Get the assistant ID
+        assistant = self.assistants.get(assistant_name)
+        assistant_id = assistant.id
+
+        # Create a thread
+        thread = self.client.beta.threads.create()
+
+        # Add the user message to the thread
+        self.client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=input
+        )
+
+        # Run the assistant on the thread
+        run = self.client.beta.threads.runs.create_and_poll(
+            thread_id=thread.id,
+            assistant_id=assistant_id,
+            instructions="",  # Additional instructions if any
+            tool_choice="required",
+            tools=[tool_obj],
+            poll_interval_ms=3000,  # Poll every 3 seconds
+        )
+
+        # if the run is completed, return the assistant's response
+        if run.status == "completed":
+            # Retrieve messages and find the assistant's reply
+            messages = self.client.beta.threads.messages.list(thread_id=thread.id)
+            for message in messages:
+                if message.role == "assistant":
+                    content = message.content[0]
+                    if content.type == "text":
+                        return content.text.value
+
+        # If the run requires action, it means we've used a tool meaning we asked for a structured output.
+        # We can cancel the run and return the structured output
+        if run.status == "requires_action":
+
+            # Get the string of the tool output. It should be JSON but I've built in a check to handle non-JSON strings
+            json_string = run.required_action.submit_tool_outputs.tool_calls[0].function.arguments
+
+            # If the JSON string is not valid, try to repair it. If it can't be repaired, return an error message
+            try:
+                json_dict = json.loads(json_string)
+            except:
+                try:
+                    json_dict = repair_json(json_string)
+                except Exception as e:
+                    ValueError(f"ERROR: Could not repair JSON string. Error: {e}")
+                    quit()
+
+            # We canceL the run and return the repaired JSON string
+            run = self.client.beta.threads.runs.cancel(
+                thread_id=thread.id,
+                run_id=run.id
+            )
+            return json_dict
+
+        elif run.status in ['cancelling', 'cancelled', 'failed', 'incomplete', 'expired']:
+            self.logger.error(f"Run failed with status: {run.status}")
+            raise RuntimeError(f"Error: Run failed with status: {run.last_error.message}")
+
+
+
 class BackEndManager:
     def __init__(self, api_key: str, endpoint: str):
         self.logger = logging.getLogger(__name__)
