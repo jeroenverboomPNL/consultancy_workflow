@@ -2,21 +2,64 @@
 import logging
 from typing import Literal, TypedDict
 from openai import AzureOpenAI, pydantic_function_tool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from json_repair import repair_json
+import json
+import time
+from typing import Optional
+import logging
 
 
-class HypothesisResponseFormat(BaseModel):
+
+class HypothesisEvaluation(BaseModel):
+
     reasoning: str
-    conclusion: str
-    score: int
 
-# class HypothesisResponse(TypedDict):
-#
-#     """
-#     Router is a TypeDict object. This is used to validates if a variable (key) is populated with a value in present
-#      in the list options provided in the Literal list. The options here are 'researcher', 'TranscriptProcessor' or 'FINISH'.
-#    """
-#     score: Literal[1, 2, 3, 4, 5, 6, 7, "CANNOT DETERMINE"]
+    # Optional field for standardizing text (e.g., replacing specific words or patterns with standard forms)
+    score_1: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Minimal or no effort to reinforce the strategic direction. "
+            "Leadership actions are either absent or misaligned, causing confusion or a lack of clarity across the organization."
+        )
+    )
+    # Optional field for formatting data (e.g., adjusting case or splitting/merging strings)
+    score_2: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Limited and inconsistent efforts to reinforce the strategic direction. "
+            "Some actions are aligned but lack follow-through or coherence, leading to fragmented understanding within the organization."
+        )
+    )
+    score_3: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Moderate and consistent reinforcement of the strategic direction. "
+            "Leadership actions are aligned and reliable, creating a baseline understanding and buy-in across most parts of the organization."
+        )
+    )
+    score_4: Optional[bool] = Field(
+        default=None,
+        description=(
+            "High degree of consistent reinforcement of the strategic direction. "
+            "Leadership demonstrates clear alignment, fostering broad understanding and a sense of urgency to act on the strategy."
+        )
+    )
+    score_5: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Exceptional and innovative reinforcement of the strategic direction. "
+            "Leadership culture actively seizes every opportunity to embed the strategy, ensuring the entire workforce deeply understands it. "
+            "Creative and impactful approaches are used to build alignment and momentum."
+        )
+    )
+    # Required field for the certainty of task selection, represented as a float (e.g., 0.85 for 85%)
+    certainty_of_correct_score_assignment: float
+
+# Define tool object using openai pydanctic_function_tool
+tool_obj = pydantic_function_tool(HypothesisEvaluation)
+
+
 
 class AzureOpenAIClient:
     def __init__(self, api_key: str, endpoint: str):
@@ -66,14 +109,14 @@ class AssistantManager:
 
 
     def initialize_assistants(self):
-        assistant_names = ["interview_assistant", "summary_assistant", "hypothesis_1_3_assistant"]
+        assistant_names = ["interview_assistant", "json_assistant", "hypothesis1_3_structured_output"]
         missing_assistants = self.validate_assistants_exist(assistant_names)
         self.create_assistants(missing_assistants)
 
         # Update assistant IDs
         assistants_list = self.client.beta.assistants.list().data
         for assistant in assistants_list:
-            self.assistants[assistant.name] = assistant.id
+            self.assistants[assistant.name] = assistant
 
     def validate_assistants_exist(self, assistant_names: list) -> list:
         missing_assistants = []
@@ -95,9 +138,9 @@ class AssistantManager:
         for assistant_name in missing_assistants:
             if assistant_name == 'interview_assistant':
                 self.create_interview_assistant()
-            elif assistant_name == 'summary_assistant':
-                self.create_summary_assistant()
-            elif assistant_name == 'hypothesis_1_3_assistant':
+            elif assistant_name == 'json_assistant':
+                self.create_json_assistant()
+            elif assistant_name == 'hypothesis1_3_structured_output':
                 self.create_hypothesis_assistant()
 
     def create_interview_assistant(self):
@@ -119,33 +162,47 @@ class AssistantManager:
             - NEVER write long text outputs.
             """,
             tools=[],
-            model="cbs-test-deployment",
+            # model="cbs-test-deployment",
+            model="gpt4o-consultancy-project",
         )
         self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
 
+    def create_json_assistant(self):
+        assistant = self.client.beta.assistants.create(
+            name="json_assistant",
+            instructions="""
+                    You will get a large text file as input ans will have to structure it for me.
+                """,
+            model="gpt4o-consultancy-project",
+            tools=[tool_obj])
+        self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
 
-    # def create_hypothesis_assistant(self):
-    #     file_paths = ["/path/to/your/document.docx"]
-    #     vector_store_id = self.vector_store_manager.create_and_fill_vector_store(
-    #         vector_store_name="hypothesis1_3_vs_id",
-    #         file_paths=file_paths,
-    #     )
-    #     assistant = self.client.beta.assistants.create(
-    #         name="hypothesis_1_3_assistant",
-    #         instructions="""
-    #         You are an expert in identifying strategy execution issues.
-    #         You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
-    #         Read the transcript and assess how the leadership scores on this hypothesis.
-    #         First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
-    #         """,
-    #         tools=[{"type": "file_search"}],
-    #         model="cbs-test-deployment",
-    #         tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
-    #     )
-    #     self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
+    def create_hypothesis_assistant(self):
+        file_paths = ["./streamlit_app/test.txt"]
+        vector_store_id = self.vector_store_manager.create_and_fill_vector_store(
+            vector_store_name="vs_hypothesis1_3_structured_output",
+            file_paths=file_paths,
+        )
+        assistant = self.client.beta.assistants.create(
+            name="hypothesis1_3_structured_output",
+            instructions="""
+            You are an expert in identifying strategy execution issues.
+            You need to test the following hypothesis: 'Hypothesis 1.3: Leadership does not consistently reinforce the strategic direction, leading to confusion or a lack of urgency'.
+            Read the transcript and assess how the leadership scores on this hypothesis.
+            First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
+            """,
+            tools=[{"type": "file_search"}],
+            # model="cbs-test-deployment",
+            model="gpt4o-consultancy-project",
+            tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
+        )
+        self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
 
-    def chat_with_assistant(self, assistant_name: str, user_message: str, chat_history: list) -> str:
-        assistant_id = self.assistants.get(assistant_name)
+    def chat_with_assistant(self, assistant_name: str, chat_history: list) -> str:
+
+        # retrieve assistant ID
+        assistant_id = self.assistants.get(assistant_name).id
+
         if not assistant_id:
             self.logger.error(f"Assistant '{assistant_name}' not found.")
             return "Error: Assistant not found."
@@ -160,13 +217,6 @@ class AssistantManager:
                 role=message["role"],
                 content=message["content"],
             )
-
-        # Add the new user message
-        self.client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=user_message,
-        )
 
         # Run the assistant on the thread
         run = self.client.beta.threads.runs.create_and_poll(
@@ -190,7 +240,12 @@ class AssistantManager:
             self.logger.error(f"Run failed with status: {run.status}")
             return f"Error: Run failed with status: {run.status}"
 
-    def process_interview(self, uploaded_file, chat_history):
+
+    def process_interview(self, assistant_name: str, uploaded_file, chat_history):
+
+        # Get the assistant ID
+        assistant = self.assistants.get(assistant_name)
+        assistant_id = assistant.id
 
         # Reset the file pointer to the beginning
         uploaded_file.seek(0)
@@ -217,48 +272,30 @@ class AssistantManager:
             attachments=[{"file_id": file.id, "tools": [{"type": "file_search"}]}],
         )
 
-        assistant_id = self.assistants.get('hypothesis_1_3_assistant')
-        if not assistant_id:
-            self.logger.error("Hypothesis assistant ID not found.")
-            return "Error: Hypothesis assistant not found."
-
         # Run the assistant on the thread
         run = self.client.beta.threads.runs.create_and_poll(
             thread_id=thread.id,
             assistant_id=assistant_id,
-            instructions="",# Additional instructions if any
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": f"hypothesis_1_3_assistant",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "reasoning": {"type": "string"},
-                            "score": {"type": "integer"},
-                        },
-                        "required": ["reasoning", "score"],
-                        "additionalProperties": False,
-                    }
-                }
-            }
+            instructions="",  # Additional instructions if any
+            tools=[{"type": "file_search"}],
+            # tool_choice="required",
+            poll_interval_ms=3000,  # Poll every 3 seconds
         )
 
+        # if the run is completed, return the assistant's response
         if run.status == "completed":
-            # Retrieve messages
+            # Retrieve messages and find the assistant's reply
             messages = self.client.beta.threads.messages.list(thread_id=thread.id)
-            # Find the assistant's reply
             for message in messages:
                 if message.role == "assistant":
                     content = message.content[0]
                     if content.type == "text":
                         return content.text.value
-            self.logger.error("Assistant did not return a response.")
-            return "Error: Assistant did not return a response."
-        else:
+
+
+        elif run.status in ['cancelling', 'cancelled', 'failed', 'incomplete', 'expired']:
             self.logger.error(f"Run failed with status: {run.status}")
-            return f"Error: Run failed with status: {run.status}"
+            raise RuntimeError(f"Error: Run failed with status: {run.last_error.message}")
 
 
 class BackEndManager:

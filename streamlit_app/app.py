@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 
 # Initialize the backend
 dotenv.load_dotenv()
-api_key = os.getenv("AZURE_OPENAI_API_KEY_POSTNL")
-endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_POSTNL")
+# api_key = os.getenv("AZURE_OPENAI_API_KEY_POSTNL")
+# endpoint = os.getenv("AZURE_OPENAI_ENDPOINT_POSTNL")
+
+api_key = os.getenv("AZURE_OPENAI_API_KEY")
+endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 
 backend_manager = BackEndManager(api_key, endpoint)
 backend_manager.init_back_end()
@@ -40,7 +43,6 @@ if prompt := st.chat_input("Your message"):
     # Send the message to the interviewer assistant and get the response
     response = backend_manager.assistant_manager.chat_with_assistant(
         assistant_name='interview_assistant',
-        user_message=prompt,
         chat_history=st.session_state.messages[:-1],  # Exclude the current user message
     )
 
@@ -67,6 +69,7 @@ if st.button('Process interview'):
 
             # Process the interview
             result = backend_manager.assistant_manager.process_interview(
+                assistant_name='hypothesis1_3_structured_output',
                 uploaded_file=uploaded_file,
                 chat_history=chat_history,
             )
