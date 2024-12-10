@@ -109,7 +109,7 @@ class AssistantManager:
 
 
     def initialize_assistants(self):
-        assistant_names = ["interview_assistant", "json_assistant", "hypothesis1_3_structured_output"]
+        assistant_names = ["interview_assistant", "json_assistant", "hypothesis1_3_structured_output", "summary_assistant"]
         missing_assistants = self.validate_assistants_exist(assistant_names)
         self.create_assistants(missing_assistants)
 
@@ -140,6 +140,8 @@ class AssistantManager:
                 self.create_interview_assistant()
             elif assistant_name == 'json_assistant':
                 self.create_json_assistant()
+            elif assistant_name == 'summary_assistant':
+                self.create_summary_assistant()
             elif assistant_name == 'hypothesis1_3_structured_output':
                 self.create_hypothesis_assistant()
 
@@ -176,6 +178,27 @@ class AssistantManager:
             model="gpt4o-consultancy-project",
             tools=[tool_obj])
         self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
+
+
+    def create_summary_assistant(self):
+        # file_paths = ["./streamlit_app/test.txt"]
+        # vector_store_id = self.vector_store_manager.create_and_fill_vector_store(
+        #     vector_store_name="vs_hypothesis1_3_structured_output",
+        #     file_paths=file_paths,
+        # )
+        assistant = self.client.beta.assistants.create(
+            name="summary_assistant",
+            instructions="""
+            You are tasked with reading the files provided and making an extensive summary of the content.
+            I want you to note down the key points and provide a structured summary of the content.
+            Be careful, do not lose any information!
+            """,
+            tools=[{"type": "file_search"}],
+            # model="cbs-test-deployment",
+            model="gpt4o-consultancy-project",
+            # tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
+        )
+        self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
 
     def create_hypothesis_assistant(self):
         file_paths = ["./streamlit_app/test.txt"]

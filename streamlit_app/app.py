@@ -69,11 +69,18 @@ if st.button('Process interview'):
             chat_history = st.session_state.messages
 
             #Process the interview
+            # result = backend_manager.assistant_manager.process_interview(
+            #     assistant_name='hypothesis1_3_structured_output',
+            #     uploaded_file=uploaded_file,
+            #     chat_history=chat_history,
+            # )
+
             result = backend_manager.assistant_manager.process_interview(
-                assistant_name='hypothesis1_3_structured_output',
+                assistant_name='summary_assistant',
                 uploaded_file=uploaded_file,
                 chat_history=chat_history,
             )
+
         with st.spinner('Parsing result from hypothesis assistant to JSON...'):
             json_obj = backend_manager.assistant_manager.parse_to_json(input=result, assistant_name='json_assistant')
 
