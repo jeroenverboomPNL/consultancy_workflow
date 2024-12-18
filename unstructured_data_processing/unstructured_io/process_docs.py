@@ -6,7 +6,7 @@ import unstructured_client
 from unstructured_client.models import operations, shared
 
 client = unstructured_client.UnstructuredClient(
-    api_key_auth="IRIoylIrQLq7Ql5ayjTbzHcxbc6N4v",
+    api_key_auth="IRIoylIrQLq7Ql5ayjTbzHcxbc6N4v", # will expire in 14 days.
     server_url="https://api.unstructuredapp.io",
 )
 
