@@ -19,22 +19,6 @@ client = AzureOpenAI(
     timeout=180.0,
 )
 
-# Define assistant ID or create a new assistant if it doesn't exist
-assistant_id = 'asst_r5RHZTE0TDP8P14zoXWBKU4j'
-if assistant_id not in [a.id for a in client.beta.assistants.list().data]:
-    assistant = client.beta.assistants.create(
-        name="image_processor_agent",
-        instructions="""
-            Describe in full detail what you see on this image. 
-            Make sure you do not lose any information. 
-            Respect the format of the input page your output. 
-            Never add more information than you can find in the image
-        """,
-        tools=[{"type": "file_search"}],
-        model="gpt4o-consultancy-project",
-    )
-    assistant_id = assistant.id
-
 
 def convert_pdf_to_images(pdf_path):
     """Convert each page of a PDF to an image using PyMuPDF."""
@@ -75,7 +59,7 @@ def convert_ppt_to_images(ppt_file, output_folder):
     print("Slides have been converted to images.")
 
 
-def process_image(image_path, client, assistant_id):
+def process_image(image_path, client):
     # Function to encode the image
     def encode_image(image_path):
         with open(image_path, "rb") as image_file:
@@ -142,40 +126,28 @@ def stack_outputs(outputs):
     return "\n\n".join(outputs)
 
 
-def process_file(file_path, max_workers=4):
+def process_pdf_file(file_path, max_workers=4):
     """Main function to process PDF or PPT files."""
     file_ext = os.path.splitext(file_path)[1].lower()
     if file_ext == '.pdf':
         images = convert_pdf_to_images(file_path)
-    elif file_ext in ['.ppt', '.pptx']:
-        raise ValueError("Please save the PPT as PDF first.")
     else:
         raise ValueError("Unsupported file format. Please provide a PDF or PPT/PPTX file.")
 
     responses = []
 
-    # Loop through images synchronously
-    for idx, image_path in enumerate(images):
-        try:
-            # Process each image one at a time
-            response = process_image(image_path, client, assistant_id)
-            responses.append((idx, f"--- Page {idx + 1} ---\n{response}"))
-            print(f"Completed processing page {idx + 1}")
-        except Exception as exc:
-            print(f"Page {idx + 1} generated an exception: {exc}")
-
     # --------- Asyc execution ------------
-    # with ThreadPoolExecutor(max_workers=max_workers) as executor:
-    #     future_to_page = {executor.submit(process_image, image, client, assistant_id): idx for idx, image in
-    #                       enumerate(images)}
-    #     for future in as_completed(future_to_page):
-    #         idx = future_to_page[future]
-    #         try:
-    #             response = future.result()
-    #             responses.append((idx, f"--- Page {idx + 1} ---\n{response}"))
-    #             print(f"Completed processing page {idx + 1}")
-    #         except Exception as exc:
-    #             print(f"Page {idx + 1} generated an exception: {exc}")
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_page = {executor.submit(process_image, image, client): idx for idx, image in
+                          enumerate(images)}
+        for future in as_completed(future_to_page):
+            idx = future_to_page[future]
+            try:
+                response = future.result()
+                responses.append((idx, f"--- Page {idx + 1} ---\n{response}"))
+                print(f"Completed processing page {idx + 1}")
+            except Exception as exc:
+                print(f"Page {idx + 1} generated an exception: {exc}")
 
     # Sort responses by page number
     responses_sorted = sorted(responses, key=lambda x: x[0])
@@ -188,6 +160,6 @@ def process_file(file_path, max_workers=4):
 if __name__ == "__main__":
     # Process a PDF file
     file_path = "20240517_PostNL_GenAI Taskforce_Summary_Deck.pdf"
-    output = process_file(file_path)
+    output = process_pdf_file(file_path)
     print(output)
     print("Processing complete.")

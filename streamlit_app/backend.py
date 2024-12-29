@@ -164,8 +164,8 @@ class AssistantManager:
             - NEVER write long text outputs.
             """,
             tools=[],
-            # model="cbs-test-deployment",
-            model="gpt4o-consultancy-project",
+            model="cbs-test-deployment",
+            # model="gpt4o-consultancy-project",
         )
         self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
 
@@ -175,7 +175,8 @@ class AssistantManager:
             instructions="""
                     You will get a large text file as input ans will have to structure it for me.
                 """,
-            model="gpt4o-consultancy-project",
+            model="cbs-test-deployment",
+            # model="gpt4o-consultancy-project",
             tools=[tool_obj])
         self.logger.info(f"Assistant 'interview_assistant' created with ID: {assistant.id}")
 
@@ -194,8 +195,8 @@ class AssistantManager:
             Be careful, do not lose any information!
             """,
             tools=[{"type": "file_search"}],
-            # model="cbs-test-deployment",
-            model="gpt4o-consultancy-project",
+            model="cbs-test-deployment",
+            # model="gpt4o-consultancy-project",
             # tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
         )
         self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
@@ -215,8 +216,8 @@ class AssistantManager:
             First, write out your reasoning, make a conclusion, and finally score them on a Likert scale from seven points.
             """,
             tools=[{"type": "file_search"}],
-            # model="cbs-test-deployment",
-            model="gpt4o-consultancy-project",
+            model="cbs-test-deployment",
+            # model="gpt4o-consultancy-project",
             tool_resources={"file_search": {"vector_store_ids": [vector_store_id]}},
         )
         self.logger.info(f"Assistant 'hypothesis_1_3_assistant' created with ID: {assistant.id}")
